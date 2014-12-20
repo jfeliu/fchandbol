@@ -10,3 +10,5 @@ How to use it:
 3. Get game_ids from "http://handbol.playoffinformatica.com/competicio" for each category you are interested in.
 4. Put info from previous points 2 and 3 into your local.cfg file which has to have default.cfg format.
 5. Run get_results.py
+
+To see game scores follow @resultats_fch on twitter.
