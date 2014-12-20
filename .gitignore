@@ -1,0 +1,3 @@
+*.pyc
+local.cfg
+database.db
