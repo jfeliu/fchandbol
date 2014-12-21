@@ -37,12 +37,12 @@ class ResultsFCH:
         fchmodels.connect("sqlite://%s" % db)
 
         # Load config
-        if not os.path.exists(CONFIG_FILE):
-            logging.error("Config file not exists: '%s'", CONFIG_FILE)
+        config_file = os.path.join(db_dir, CONFIG_FILE)
+        if not os.path.exists(config_file):
+            logging.error("Config file not exists: '%s'", config_file)
             sys.exit(1)
         config = ConfigParser.RawConfigParser()
-        config.read(CONFIG_FILE)
-        print config.defaults()
+        config.read(config_file)
         self.init_ids = [int(x.strip()) for x in config.defaults()
                          .get('init_ids').split(',')]
 
