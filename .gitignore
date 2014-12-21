@@ -1,3 +1,9 @@
+# Virtualenv
+bin
+lib
+include
+local
+
 *.pyc
 local.cfg
 database.db
