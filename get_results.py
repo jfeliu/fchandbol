@@ -258,6 +258,10 @@ class ResultsFCH:
                 u'HANDBOL ESPLUGUES': u'@HEsplugues',
                 u'HANDBOL POBLENOU': u'@H_Poblenou',
                 u'H POBLENOU': u'@H_Poblenou',
+                u'CLUB HANDBOL IGUALADA': u'@handboligualada',
+                u'CH IGUALADA': u'@handboligualada',
+                u'HANDBOL CARDEDEU': u'@CHCardedeu',
+                u'CH CARDEDEU': u'@CHCardedeu',
                 }
         for kw in keyword_user:
             if kw in team:
