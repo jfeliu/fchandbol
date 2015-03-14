@@ -10,20 +10,37 @@ import fchmodels
 import requests
 import logging
 import twitter
+import pprint
 import sys
 import os
-
-URL = 'http://handbol.playoffinformatica.com/peticioAjaxCompeticioPublica.php'
-HEADERS = {'Content-Type': 'application/x-www-form-urlencoded'}
-CONFIG_FILE = 'local.cfg'
-MAX_TWEET_LEN = 140
 
 
 class ResultsFCH:
     """Class to fetch and tweet results from FCH"""
 
-    def __init__(self, debug=False):
+    URL = 'http://handbol.playoffinformatica.com/peticioAjaxCompeticioPublica.php'
+    HEADERS = {'Content-Type': 'application/x-www-form-urlencoded'}
+    CONFIG_FILE = 'local.cfg'
+    MAX_TWEET_LEN = 140
+    STATUS_OUTDATED = u'Outdated results'
+    STATUS_FUTURE = u'Results from future'
+    STATUS_OTHER_CAT = u'Turning to another category'
+    STATUS_OK = u'OK'
+    CATEGORIES = [u'MASTER',
+                  u'SENIOR',
+                  u'JUVENIL',
+                  u'CADET',
+                  u'INFANTIL']
+
+
+    def __init__(self, category, debug=False):
         self.debug = debug
+
+        # Check category
+        if category not in self.CATEGORIES:
+            logging.error('Wrong category, use one of these: %s',
+                          self.CATEGORIES)
+            sys.exit()
 
         # Connect to fch_db
         db_dir = os.path.dirname(os.path.realpath(__file__))
@@ -37,26 +54,127 @@ class ResultsFCH:
         fchmodels.connect("sqlite://%s" % db)
 
         # Load config
-        config_file = os.path.join(db_dir, CONFIG_FILE)
+        config_file = os.path.join(db_dir, self.CONFIG_FILE)
         if not os.path.exists(config_file):
             logging.error("Config file not exists: '%s'", config_file)
             sys.exit(1)
         config = ConfigParser.RawConfigParser()
         config.read(config_file)
-        self.init_ids = [int(x.strip()) for x in config.defaults()
-                         .get('init_ids').split(',')]
+        self.init_ids = [int(x.strip()) \
+                         for x in config.get(category,
+                                             'init_ids').split(',')]
 
         # Connect to twitter
         self.tw_api = twitter.Api(
-            consumer_key=config.defaults().get('con_key'),
-            consumer_secret=config.defaults().get('con_sec'),
-            access_token_key=config.defaults().get('token_key'),
-            access_token_secret=config.defaults().get('token_sec'))
+            consumer_key=config.get(category, 'con_key'),
+            consumer_secret=config.get(category, 'con_sec'),
+            access_token_key=config.get(category, 'token_key'),
+            access_token_secret=config.get(category, 'token_sec'))
 
-    def run(self):
+    def get_results(self, fch_id):
+        """ Fetch results from FCH website. """
+
         today = datetime.today().date()
         day = today
 
+        payload = {'idJornada': fch_id,
+                   'peticioKey': 'peticio_competicio_publica_resultats'}
+
+        results = {}
+
+        # Getting HTML code
+        r = requests.post(self.URL,
+                          data=payload,
+                          headers=self.HEADERS)
+
+        # Parsing HTML elements
+        soup = BeautifulSoup(r.text)
+        competition = soup.findAll('h3')[0].text
+        results['competition'] = competition
+        logging.info('Parsing id "%d", competition "%s"',
+                     fch_id,
+                     competition)
+        num, day = [x.strip() for x in soup.findAll('h4')[0].text.split('/')]
+        # Return an error when there is no more
+        # games for this category
+        try:
+            num = int(num.split('Jornada')[-1].strip())
+            results['num'] = num
+        except:
+            status = u'No more games for this category'
+            logging.warning(status)
+            results['status'] = status
+            return results
+
+        day = datetime.date(datetime.strptime(day.strip(),
+                                              "%d-%m-%Y"))
+        results['day'] = day
+
+        if today > day + timedelta(weeks=1):
+            fch_id += 1
+
+            # Break if fch_id in self.init_ids, it will
+            # belongs to another category
+            if fch_id in self.init_ids:
+                status = self.STATUS_OTHER_CAT
+                logging.warning(status)
+                results['status'] = status
+                return results
+
+            status = self.STATUS_OUTDATED
+            logging.warning(status)
+            results['status'] = status
+            results['completed'] = True
+            return results
+
+        elif today < day:
+            status = self.STATUS_FUTURE
+            logging.warning(status)
+            results['status'] = status
+            return results
+
+        local = soup.findAll('td', {'class': 'local'})
+        visitant = soup.findAll('td', {'class': 'visitant'})
+        gols_local = soup.findAll('td', {'class':
+                                            'resultat-local'})
+        gols_visitant = soup.findAll('td', {'class':
+                                            'resultat-visitant'})
+        dia = soup.findAll('td', {'class': 'dia'})
+        hora = soup.findAll('td', {'class': 'hora'})
+        lloc = soup.findAll('td', {'class': 'lloc'})
+        verified = soup.findAll('td', {'class': 'textVerifi'})
+
+        partits = []
+        completed = True
+        for i in range(len(local)):
+            partit = {}
+            partit['local'] = local[i].text
+            partit['gols_local'] = gols_local[i].text
+            partit['visitant'] = visitant[i].text
+            partit['gols_visitant'] = gols_visitant[i].text
+            if not dia[i].text or hora[i].text == 'Pendent':
+                # No data for this match or
+                # it is pending to schedule
+                continue
+            partit['dia'] = datetime.strptime(
+                dia[i].text + ' ' + hora[i].text,
+                "%d-%m-%Y %H:%M")
+            partit['lloc'] = lloc[i].text
+            if verified[i].text:
+                partit['verified'] = False
+                completed = False
+            else:
+                partit['verified'] = True
+            partits.append(partit)
+        results['partits'] = partits
+        results['completed'] = completed
+        results['status'] =self.STATUS_OK
+
+        return results
+
+
+    def run(self):
+        pp = pprint.PrettyPrinter()
         # For all competitions
         for init_id in self.init_ids:
             fch_id = init_id
@@ -65,94 +183,33 @@ class ResultsFCH:
                 weekend = fchmodels.Weekend.selectBy(fch_id=fch_id,
                                                      completed=True)
                 if weekend.count() == 0:
-                    payload = {'idJornada': fch_id,
-                               'peticioKey':
-                               'peticio_competicio_publica_resultats'}
+                    # Get results
+                    results = self.get_results(fch_id)
+                    logging.debug(results)
 
-                    # Getting HTML code
-                    r = requests.post(URL,
-                                    data=payload,
-                                    headers=HEADERS)
-
-                    # Parsing HTML elements
-                    soup = BeautifulSoup(r.text)
-                    competition = soup.findAll('h3')[0].text
-                    logging.info('Parsing id "%d", competition "%s"',
-                                 fch_id,
-                                 competition)
-                    num, day = soup.findAll('h4')[0].text.split('/')
-                    # Return an error when there is no more
-                    # games for this category
-                    try:
-                        num = int(num.split('Jornada')[-1].strip())
-                    except:
-                        logging.debug('No more games for this category!')
+                    if results['status'] in (self.STATUS_FUTURE,
+                                             self.STATUS_OTHER_CAT):
                         break
-                    day = datetime.date(datetime.strptime(day.strip(),
-                                                          "%d-%m-%Y"))
-                    if today > day + timedelta(weeks=1):
-                        fch_id += 1
-                        # Break if fch_id in self.init_ids, it will
-                        # belongs to another category
-                        if fch_id in self.init_ids:
-                            logging.debug('Breaking to another category')
-                            break
-                        logging.debug('Outdated results %s', day)
-                        continue
-                    elif today < day:
-                        logging.debug('Outdated results %s', day)
-                        break
-                    local = soup.findAll('td', {'class': 'local'})
-                    visitant = soup.findAll('td', {'class': 'visitant'})
-                    gols_local = soup.findAll('td', {'class':
-                                                     'resultat-local'})
-                    gols_visitant = soup.findAll('td', {'class':
-                                                        'resultat-visitant'})
-                    dia = soup.findAll('td', {'class': 'dia'})
-                    hora = soup.findAll('td', {'class': 'hora'})
-                    lloc = soup.findAll('td', {'class': 'lloc'})
-                    verified = soup.findAll('td', {'class': 'textVerifi'})
-
-                    partits = []
-                    completed = True
-                    for i in range(len(local)):
-                        partit = {}
-                        partit['local'] = local[i].text
-                        partit['gols_local'] = gols_local[i].text
-                        partit['visitant'] = visitant[i].text
-                        partit['gols_visitant'] = gols_visitant[i].text
-                        if not dia[i].text or hora[i].text == 'Pendent':
-                            # No data for this match or
-                            # it is pending to schedule
-                            break
-                        partit['dia'] = datetime.strptime(
-                            dia[i].text + ' ' + hora[i].text,
-                            "%d-%m-%Y %H:%M")
-                        partit['lloc'] = lloc[i].text
-                        if verified[i].text:
-                            partit['verified'] = False
-                            completed = False
-                        else:
-                            partit['verified'] = True
-                        partits.append(partit)
 
                     # Get existing but non-completed weekend
                     weekend = fchmodels.Weekend.selectBy(fch_id=fch_id)
                     if weekend.count() == 0:
-                        weekend = fchmodels.Weekend(fch_id=fch_id,
-                                                    competition=competition,
-                                                    day=day,
-                                                    num=num,
-                                                    completed=completed)
+                        # Insert weekend
+                        weekend = fchmodels.Weekend(
+                            fch_id=fch_id,
+                            competition=results['competition'],
+                            day=results['day'],
+                            num=results['num'],
+                            completed=results['completed'])
                         weekend_id = weekend.id
                     else:
                         weekend = weekend.getOne()
-                    if completed:
+                    if results['completed']:
                         weekend.set(completed=True)
                     weekend_id = weekend.id
 
                     new_partits = []
-                    for partit in partits:
+                    for partit in results.get('partits', []):
                         if partit['gols_local'] and partit['gols_visitant']:
                             old_partit = fchmodels.Game.selectBy(
                                 weekend=weekend_id,
@@ -224,6 +281,7 @@ class ResultsFCH:
                 (u'FASE', u'Fase'),
                 (u'GRUP', u'Grup'),
                 (u'SÈNIOR', u'Sèn'),
+                (u'MÀSTERS', u'Màs'),
                 (u'"ANTONIO LÁZARO"', u''),
                 (U'-', u''),
                 (u' ', u'')]
@@ -241,7 +299,6 @@ class ResultsFCH:
                 u'CLUB HANDBOL RÀPID CORNELLÀ': u'@HandbolCornella',
                 u'A.E. AULA': u'@AEAulaHandbol',
                 u'CLUB HANDBOL RIPOLLET': u'@handbolripollet',
-                #u'': u'@HandbolSalou',
                 u'CH.CANOVELLES': u'@CHCanovelles',
                 u'HANDBOL  TERRASSA': u'@HTerrassa',
                 u'HANDBOL TERRASSA': u'@HTerrassa',
@@ -297,8 +354,8 @@ class ResultsFCH:
                         self.get_team_twitter_user(game.visitor))
             hashtag = self.make_hashtag(weekend.competition)
             update = hashtag + self.clean_tweet(update)
-            if len(update) > MAX_TWEET_LEN:
-                update = update[:MAX_TWEET_LEN - 3] + '...'
+            if len(update) > self.MAX_TWEET_LEN:
+                update = update[:self.MAX_TWEET_LEN - 3] + '...'
             if self.debug:
                 logging.info(update)
             else:
@@ -309,9 +366,11 @@ class ResultsFCH:
 
 if __name__ == '__main__':
 
-    usage = 'usage: %prog [options]'
+    usage = 'usage: %prog -c CATEGORY [options]'
     parser = OptionParser(usage=usage)
 
+    parser.add_option('-c', '--category', dest='category',
+                      help='Category.', type=str)
     parser.add_option('-l', '--log-file', dest='log_file',
                       help='Log file.', type=str)
     parser.add_option('-d', '--debug', dest='debug',
@@ -319,6 +378,10 @@ if __name__ == '__main__':
                       default=False, action='store_true')
 
     (options, args) = parser.parse_args()
+
+    if not options.category:
+        parser.error('Category is mandatory!')
+        sys.exit()
 
     if options.debug:
         level = logging.DEBUG
@@ -330,5 +393,6 @@ if __name__ == '__main__':
                         format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S")
 
-    get_results = ResultsFCH(debug=options.debug)
-    get_results.run()
+    resultsfch = ResultsFCH(category=options.category,
+                            debug=options.debug)
+    resultsfch.run()
