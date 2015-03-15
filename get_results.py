@@ -276,7 +276,7 @@ class ResultsFCH:
                 (u'FASE', u'Fase'),
                 (u'GRUP', u'Grup'),
                 (u'SÈNIOR', u'Sèn'),
-                (u'MÀSTERS', u'Màs'),
+                (u'MÀSTERS', u'Màsters'),
                 (u'"ANTONIO LÁZARO"', u''),
                 (U'-', u''),
                 (u' ', u'')]
