@@ -25,6 +25,7 @@ class ResultsFCH:
     STATUS_OUTDATED = u'Outdated results'
     STATUS_FUTURE = u'Results from future'
     STATUS_OTHER_CAT = u'Turning to another category'
+    STATUS_NO_MORE_GAMES = u'No more games for this category'
     STATUS_OK = u'OK'
     CATEGORIES = [u'MASTER',
                   u'SENIOR',
@@ -101,7 +102,7 @@ class ResultsFCH:
             num = int(num.split('Jornada')[-1].strip())
             results['num'] = num
         except:
-            status = u'No more games for this category'
+            status = self.STATUS_NO_MORE_GAMES
             logging.warning(status)
             results['status'] = status
             return results
@@ -188,7 +189,8 @@ class ResultsFCH:
                     logging.debug(results)
 
                     if results['status'] in (self.STATUS_FUTURE,
-                                             self.STATUS_OTHER_CAT):
+                                             self.STATUS_OTHER_CAT,
+                                             self.STATUS_NO_MORE_GAMES):
                         break
 
                     # Get existing but non-completed weekend
