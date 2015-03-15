@@ -277,8 +277,12 @@ class ResultsFCH:
                 (u'GRUP', u'Grup'),
                 (u'SÈNIOR', u'Sèn'),
                 (u'MÀSTERS', u'Màsters'),
+                (u'JUVENIL', u'Juvenil'),
+                (u'FEDERACIÓ', u'Fede'),
+                (u'SÈRIE', u'Serie'),
                 (u'"ANTONIO LÁZARO"', u''),
-                (U'-', u''),
+                (u'COPA', u'Copa'),
+                (u'-', u''),
                 (u' ', u'')]
         for i in repl:
             s = s.replace(i[0], i[1])
