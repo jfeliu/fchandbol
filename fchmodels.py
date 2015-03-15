@@ -34,11 +34,10 @@ class Weekend(SQLObject):
 
 class FCHDatabase(object):
     def __init__(self, database_name, server, rebuild=False):
-        self.conn = connect(
-            "postgresql://resultats_fch:resultats_fch@localhost/resultats_fch")
+        self.conn = connect(os.environ['DB_URL'])
         if rebuild:
             prepare_db(True)
-            self.grant_access_to_user('resultats_fch')
+            self.grant_access_to_user(os.environ['DB_USER'])
 
     def grant_access_to_user(self, user):
         tables = [
@@ -78,4 +77,4 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
 
-    FCHDatabase.create_db(args[0], 'localhost')
+    FCHDatabase.create_db(args[0], os.environ['DB_HOST'])

@@ -45,10 +45,10 @@ class ResultsFCH:
 
         # Connect to fch_db
         try:
-            fchmodels.connect(
-                "postgresql://resultats_fch:resultats_fch@localhost/resultats_fch")
+            fchmodels.connect(os.environ['DB_URL'])
         except Exception, e:
             logging.error(e)
+            sys.exit()
 
         # Load config
         con_key = os.environ[category+'_CON_KEY']
