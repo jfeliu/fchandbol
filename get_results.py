@@ -55,22 +55,19 @@ class ResultsFCH:
         fchmodels.connect("sqlite://%s" % db)
 
         # Load config
-        config_file = os.path.join(db_dir, self.CONFIG_FILE)
-        if not os.path.exists(config_file):
-            logging.error("Config file not exists: '%s'", config_file)
-            sys.exit(1)
-        config = ConfigParser.RawConfigParser()
-        config.read(config_file)
+        con_key = os.environ[category+'_CON_KEY']
+        con_sec = os.environ[category+'_CON_SEC']
+        token_key = os.environ[category+'_TOKEN_KEY']
+        token_sec = os.environ[category+'_TOKEN_SEC']
         self.init_ids = [int(x.strip()) \
-                         for x in config.get(category,
-                                             'init_ids').split(',')]
+                         for x in os.environ[category+'_INIT_IDS'].split(',')]
 
         # Connect to twitter
         self.tw_api = twitter.Api(
-            consumer_key=config.get(category, 'con_key'),
-            consumer_secret=config.get(category, 'con_sec'),
-            access_token_key=config.get(category, 'token_key'),
-            access_token_secret=config.get(category, 'token_sec'))
+            consumer_key=con_key,
+            consumer_secret=con_sec,
+            access_token_key=token_key,
+            access_token_secret=token_sec)
 
     def get_results(self, fch_id):
         """ Fetch results from FCH website. """
@@ -395,6 +392,6 @@ if __name__ == '__main__':
                         format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%Y-%m-%d %H:%M:%S")
 
-    resultsfch = ResultsFCH(category=options.category,
+    resultsfch = ResultsFCH(category=options.category.upper(),
                             debug=options.debug)
     resultsfch.run()
