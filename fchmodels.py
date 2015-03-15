@@ -34,18 +34,18 @@ class Weekend(SQLObject):
 
 class FCHDatabase(object):
     def __init__(self, database_name, server, rebuild=False):
-        self.conn = connect("sqlite://%s/database.db"
-                            % os.path.dirname(os.path.realpath(__file__)))
+        self.conn = connect(
+            "postgresql://resultats_fch:resultats_fch@localhost/resultats_fch")
         if rebuild:
             prepare_db(True)
-            #self.grant_access_to_user('jfeliu')
+            self.grant_access_to_user('resultats_fch')
 
     def grant_access_to_user(self, user):
         tables = [
             "weekend",
             "game"]
         for table in tables:
-            self.conn.query("GRANT SELECT ON TABLE %s TO jfeliu" % table)
+            self.conn.query("GRANT SELECT ON TABLE %s TO %s" % (table, user))
 
     @staticmethod
     def create_db(database_name, server):

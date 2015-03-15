@@ -44,15 +44,11 @@ class ResultsFCH:
             sys.exit()
 
         # Connect to fch_db
-        db_dir = os.path.dirname(os.path.realpath(__file__))
-        db = os.path.join(db_dir, 'database.db')
-
-        if not os.path.exists(db):
-            logging.error("Database not exists: '%s'", db)
-            fchmodels.FCHDatabase.create_db(db, 'localhost')
-            logging.info("Database '%s' has been created", db)
-
-        fchmodels.connect("sqlite://%s" % db)
+        try:
+            fchmodels.connect(
+                "postgresql://resultats_fch:resultats_fch@localhost/resultats_fch")
+        except Exception, e:
+            logging.error(e)
 
         # Load config
         con_key = os.environ[category+'_CON_KEY']
