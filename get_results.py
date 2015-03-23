@@ -278,6 +278,7 @@ class ResultsFCH:
                 (u'SÈNIOR', u'Sèn'),
                 (u'MÀSTERS', u'Màsters'),
                 (u'JUVENIL', u'Juvenil'),
+                (u'INFANTIL', u'Infantil'),
                 (u'FEDERACIÓ', u'Fede'),
                 (u'SÈRIE', u'Serie'),
                 (u'"ANTONIO LÁZARO"', u''),
